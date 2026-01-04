@@ -11,9 +11,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Create config.js
-        run: echo "${{ secrets.CONFIG_FILE }}" > config.js
-
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 

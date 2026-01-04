@@ -1,14 +1,27 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import {
+    getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { firebaseConfig, TMDB_KEY } from "./config.js";
+
+// --- CONFIGURATION (Hardcoded for simplicity) ---
+const TMDB_KEY = "693bb7c1cb06ae9e01982036e6898023";
+const TMDB_BASE = "https://api.themoviedb.org/3";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAWulgAc4SodSdQ_rbut9QoTFpP4Sek5HM",
+  authDomain: "watchlist-2ce12.firebaseapp.com",
+  projectId: "watchlist-2ce12",
+  storageBucket: "watchlist-2ce12.firebasestorage.app",
+  messagingSenderId: "278070870340",
+  appId: "1:278070870340:web:338e4ee0ac37ea26ab1711"
+};
 
 // --- INIT ---
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
-const TMDB_BASE = "https://api.themoviedb.org/3";
 
 // --- STATE ---
 let CURRENT_USER_ID = null;
@@ -37,6 +50,7 @@ document.getElementById('logout-btn').addEventListener('click', () => signOut(au
 
 function showToast(msg) {
     const box = document.getElementById('toast-container');
+    if(!box) return;
     const el = document.createElement('div');
     el.className = 'toast'; el.innerHTML = msg;
     box.appendChild(el);
@@ -162,6 +176,7 @@ function renderWatchlist() {
     list.forEach(i => {
         const d = document.createElement('div'); d.className='glass-card';
         let txt='', btn='';
+        // Treat items with 1 season as "Movie-like" buttons
         if(i.total_seasons===1) {
             txt = `${i.type.toUpperCase()} • ${Math.floor(i.runtime_min/60)}h ${i.runtime_min%60}m`;
             btn = `<button class="btn-check" onclick="markSeason('${i.firebaseId}',${i.total_seasons},${i.seasons_watched})">Watched</button>`;
