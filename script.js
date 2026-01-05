@@ -162,7 +162,11 @@ window.fetchDetailsAndAdd = async (str, btn) => {
     btn.innerHTML = '<i class="fa-solid fa-spinner"></i>'; btn.disabled=true;
 
     const item = JSON.parse(decodeURIComponent(str));
-    let final = { id:item.id, title:item.title, poster:item.poster, type:item.app_type, total_seasons:1, runtime_min:0, seasons_watched:0, genres:[] };
+    // Initialize total_episodes to 0
+    let final = {
+        id:item.id, title:item.title, poster:item.poster, type:item.app_type,
+        total_seasons:1, total_episodes:0, runtime_min:0, seasons_watched:0, genres:[]
+    };
 
     try {
         const ep = item.media_type==='tv'?'tv':'movie';
@@ -171,11 +175,15 @@ window.fetchDetailsAndAdd = async (str, btn) => {
 
         if(item.media_type==='tv') {
             final.total_seasons = d.number_of_seasons||1;
+            final.total_episodes = d.number_of_episodes||0; // SAVE EPISODE COUNT
+
             const avg = (d.episode_run_time && d.episode_run_time[0])||24;
-            const eps = d.number_of_episodes||12;
+            // Use API episodes if available, else calc
+            const eps = final.total_episodes || 12;
             final.runtime_min = Math.floor((avg*eps)/final.total_seasons);
         } else {
             final.runtime_min = d.runtime||100;
+            final.total_episodes = 1; // Movies count as 1 entry
         }
 
         await addDoc(collection(db,"users",CURRENT_USER_ID,"watchlist"), {...final, timestamp:Date.now()});
@@ -196,14 +204,28 @@ function renderWatchlist() {
     list.forEach(i => {
         const d = document.createElement('div'); d.className='glass-card';
         let txt='', btn='';
-        // Treat items with 1 season as "Movie-like" buttons
-        if(i.total_seasons===1) {
+
+        const isMovie = i.type === 'movie';
+
+        // LOGIC: If it's a Movie, show Runtime.
+        // If it's TV/Anime with 1 Season, show "X Episodes".
+        // If it's TV/Anime with multiple seasons, show "Season X of Y".
+
+        if(isMovie) {
             txt = `${i.type.toUpperCase()} • ${Math.floor(i.runtime_min/60)}h ${i.runtime_min%60}m`;
             btn = `<button class="btn-check" onclick="markSeason('${i.firebaseId}',${i.total_seasons},${i.seasons_watched})">Watched</button>`;
-        } else {
+        }
+        else if (i.total_seasons === 1) {
+            // It's a series, but only 1 season (e.g. Miniseries or One Piece format)
+            const eps = i.total_episodes ? `${i.total_episodes} Eps` : '1 Season';
+            txt = `${i.type.toUpperCase()} • ${eps}`;
+            btn = `<button class="btn-check" onclick="markSeason('${i.firebaseId}',${i.total_seasons},${i.seasons_watched})">Watched</button>`;
+        }
+        else {
             txt = `${i.type.toUpperCase()} • Season ${i.seasons_watched+1} of ${i.total_seasons}`;
             btn = `<button class="btn-check" onclick="markSeason('${i.firebaseId}',${i.total_seasons},${i.seasons_watched})"><i class="fa-solid fa-check"></i> S${i.seasons_watched+1} Done</button>`;
         }
+
         d.innerHTML = `
             <img src="${i.poster}" class="poster">
             <div class="card-info">
@@ -258,7 +280,17 @@ function renderProfileStats() {
     if(hist.length === 0) box.innerHTML = '<div style="opacity:0.5;text-align:center;font-size:12px;">No history.</div>';
     else hist.slice(0, 10).forEach(i => {
         const fin = i.seasons_watched >= i.total_seasons;
-        const sub = i.total_seasons === 1 ? 'Watched' : `S${i.seasons_watched} / S${i.total_seasons}`;
+        let sub = '';
+
+        if (i.type === 'movie') {
+            sub = 'Watched';
+        } else if (i.total_seasons === 1) {
+            // Show episodes for single season shows in history too
+            sub = i.total_episodes ? `${i.total_episodes} Eps` : 'Watched';
+        } else {
+            sub = `S${i.seasons_watched} / S${i.total_seasons}`;
+        }
+
         const d = document.createElement('div'); d.className='history-item';
         d.innerHTML=`
             <img src="${i.poster}">
