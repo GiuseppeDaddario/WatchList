@@ -4,7 +4,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-// --- CONFIGURATION (Hardcoded for simplicity) ---
+// --- CONFIGURATION ---
 const TMDB_KEY = "693bb7c1cb06ae9e01982036e6898023";
 const TMDB_BASE = "https://api.themoviedb.org/3";
 
@@ -204,7 +204,7 @@ function renderProfileStats() {
     ALL_USER_ITEMS.forEach(i => {
         const w = i.seasons_watched||0;
         if(w>0) {
-            if(i.type==='anime') ani+=w; else if(i.type==='movie') mov++; else tv+=w;
+            if(i.type==='anime') ani++; else if(i.type==='movie') mov++; else tv+=w;
             const m = w*i.runtime_min; min+=m;
             if(m>maxMin) { maxMin=m; titan=i; }
             if(i.total_seasons===1) eps++; else eps+=(w*10);
