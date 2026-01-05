@@ -125,12 +125,14 @@ window.applyLocalFilter = (type, btn) => {
 
     list.forEach(item => {
         const d = document.createElement('div'); d.className='glass-card';
+        const safeItemString = encodeURIComponent(JSON.stringify(item)).replace(/'/g, "%27");
+
         d.innerHTML = `
             <img src="${item.poster}" class="poster">
             <div class="card-info">
                 <h3 class="card-title">${item.title}</h3>
                 <div class="card-meta">${item.app_type.toUpperCase()} • ${item.year}</div>
-                <button class="btn-add" onclick="fetchDetailsAndAdd('${encodeURIComponent(JSON.stringify(item))}', this)">+ Add</button>
+                <button class="btn-add" onclick="fetchDetailsAndAdd('${safeItemString}', this)">+ Add</button>
             </div>`;
         box.appendChild(d);
     });
