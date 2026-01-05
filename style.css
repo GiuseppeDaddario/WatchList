@@ -136,11 +136,49 @@ input { background: transparent; border: none; color: white; font-size: 15px; wi
 .titan-poster { width: 40px; height: 60px; border-radius: 6px; object-fit: cover; }
 
 /* --- CHART & HISTORY --- */
-.genre-row { display: flex; align-items: center; font-size: 11px; margin-bottom: 8px; width: 100%; }
-.genre-name { width: 70px; opacity: 0.7; }
-.genre-track { flex: 1; height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; margin: 0 10px; }
-.genre-fill { height: 100%; border-radius: 3px; }
-.genre-count { width: 20px; text-align: right; opacity: 0.4; }
+/* --- UPDATED GENRE CHART (Grid Layout) --- */
+#genre-chart {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* Split into 2 columns */
+    gap: 8px 15px; /* Spacing between rows and columns */
+    width: 100%;
+}
+
+.genre-row {
+    display: flex;
+    align-items: center;
+    font-size: 10px; /* Smaller font for density */
+    width: 100%;
+}
+
+.genre-name {
+    width: 95px;
+    opacity: 0.8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.genre-track {
+    flex: 1;
+    height: 5px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 0 8px;
+}
+
+.genre-fill {
+    height: 100%;
+    border-radius: 3px;
+}
+
+.genre-count {
+    width: 15px;
+    text-align: right;
+    opacity: 0.5;
+    font-weight: 700;
+}
 
 .history-grid { display: grid; gap: 8px; width: 100%; }
 .history-item {
@@ -191,3 +229,42 @@ input { background: transparent; border: none; color: white; font-size: 15px; wi
 
 /* Ensure login is hidden by default in CSS to prevent flash */
 #login-view { display: none; }
+
+#section-live, #section-anime {
+    transition: 0.3s;
+}
+
+/* History Toggle Button */
+.btn-toggle-history {
+    background: transparent;
+    border: none;
+    color: white;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    cursor: pointer;
+    opacity: 0.8;
+}
+
+.btn-toggle-history i {
+    transition: transform 0.3s ease;
+}
+
+/* Rotate icon when active class is added via JS */
+.btn-toggle-history.active i {
+    transform: rotate(180deg);
+}
+
+#history-wrapper {
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}

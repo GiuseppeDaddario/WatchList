@@ -14,7 +14,7 @@
 
     <div id="loading-overlay">
         <div class="spinner"></div>
-        <div style="margin-top:20px; font-size:12px; opacity:0.7; letter-spacing:2px;">LOADING WATCHLIST</div>
+        <div style="margin-top:20px; font-size:12px; opacity:0.7; letter-spacing:2px;">LOADING APP</div>
     </div>
 
     <div id="login-view" class="glass-login" style="display: none;">
@@ -57,49 +57,50 @@
             </div>
 
             <div id="watchlist-view" class="view">
-                <div class="section-header">Up Next</div>
-                <div id="watchlist-items" class="list-layout"></div>
+
                 <div id="empty-list-msg" style="display:none; text-align:center; padding:40px; opacity:0.5;">
                     <i class="fa-solid fa-couch" style="font-size:32px; margin-bottom:10px;"></i><br>
                     Nothing to watch!
+                </div>
+
+                <div id="section-live" style="margin-bottom: 25px;">
+                    <div class="section-header" style="color:#3498db;">Movies & TV</div>
+                    <div id="watchlist-live" class="list-layout"></div>
+                </div>
+
+                <div id="section-anime">
+                    <div class="section-header" style="color:#e84393;">Anime</div>
+                    <div id="watchlist-anime" class="list-layout"></div>
                 </div>
             </div>
 
             <div id="profile-view" class="view">
 
-                <div class="glass-card" style="flex-direction: column; gap: 0; padding: 15px;">
-                    <h2 style="margin:0 0 10px 0; font-size:12px; opacity:0.5; text-transform:uppercase; letter-spacing:1px;">Time Watched</h2>
-                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-                        <div style="background:rgba(255,255,255,0.05); border-radius:12px; padding:12px 10px; text-align:center; position:relative; overflow:hidden;">
-                            <div class="glow-bg" style="background:#3498db;"></div>
-                            <div id="stat-time-main" style="font-size:20px; font-weight:800; color:#fff; position:relative; z-index:2;">0h</div>
-                            <div style="font-size:10px; opacity:0.7; position:relative; z-index:2;">Movies & TV</div>
-                        </div>
-                        <div style="background:rgba(255,255,255,0.05); border-radius:12px; padding:12px 10px; text-align:center; position:relative; overflow:hidden;">
-                            <div class="glow-bg" style="background:#e84393;"></div>
-                            <div id="stat-time-anime" style="font-size:20px; font-weight:800; color:#fff; position:relative; z-index:2;">0h</div>
-                            <div style="font-size:10px; opacity:0.7; position:relative; z-index:2;">Anime</div>
-                        </div>
+            <div class="glass-card" style="flex-direction: column; gap: 0; padding: 15px; align-items: stretch;">
+                <h2 style="margin:0 0 10px 0; font-size:12px; opacity:0.5; text-transform:uppercase; letter-spacing:1px; text-align: center;">Time Watched</h2>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+
+                    <div style="background:rgba(255,255,255,0.05); border-radius:12px; padding:15px; text-align:center; position:relative; overflow:hidden;">
+                        <div class="glow-bg" style="background:#3498db;"></div>
+                        <div id="stat-time-main" style="font-size:22px; font-weight:800; color:#fff; position:relative; z-index:2;">0h</div>
+                        <div style="font-size:10px; opacity:0.7; position:relative; z-index:2; margin-top:2px;">Movies & TV</div>
                     </div>
+
+                    <div style="background:rgba(255,255,255,0.05); border-radius:12px; padding:15px; text-align:center; position:relative; overflow:hidden;">
+                        <div class="glow-bg" style="background:#e84393;"></div>
+                        <div id="stat-time-anime" style="font-size:22px; font-weight:800; color:#fff; position:relative; z-index:2;">0h</div>
+                        <div style="font-size:10px; opacity:0.7; position:relative; z-index:2; margin-top:2px;">Anime</div>
+                    </div>
+
                 </div>
+            </div>
 
                 <div class="stats-grid">
-                    <div class="stat-badge">
-                        <span class="stat-value" id="stat-completed-ratio">0%</span>
-                        <span class="stat-label">Done</span>
-                    </div>
-                    <div class="stat-badge">
-                        <span class="stat-value" id="stat-total-eps">0</span>
-                        <span class="stat-label">Episodes</span>
-                    </div>
-                    <div class="stat-badge">
-                        <span class="stat-value" id="stat-movies">0</span>
-                        <span class="stat-label">Movies</span>
-                    </div>
-                    <div class="stat-badge">
-                        <span class="stat-value" id="stat-anime">0</span>
-                        <span class="stat-label">Anime</span>
-                    </div>
+                    <div class="stat-badge"><span class="stat-value" id="stat-completed-ratio">0%</span><span class="stat-label">Done</span></div>
+                    <div class="stat-badge"><span class="stat-value" id="stat-total-eps">0</span><span class="stat-label">Episodes</span></div>
+                    <div class="stat-badge"><span class="stat-value" id="stat-movies">0</span><span class="stat-label">Movies</span></div>
+                    <div class="stat-badge"><span class="stat-value" id="stat-anime">0</span><span class="stat-label">Anime</span></div>
                 </div>
 
                 <div id="titan-container"></div>
@@ -110,9 +111,15 @@
                 </div>
 
                 <div class="glass-card" style="flex-direction:column; gap:10px;">
-                    <div class="section-header" style="margin:0;">History</div>
-                    <div id="history-list" class="history-grid"></div>
+                    <button class="btn-toggle-history" onclick="toggleHistory(this)">
+                        <span>History</span>
+                        <i class="fa-solid fa-chevron-down"></i>
+                    </button>
+                    <div id="history-wrapper" style="display: none; width: 100%;">
+                        <div id="history-list" class="history-grid"></div>
+                    </div>
                 </div>
+
             </div>
         </main>
 

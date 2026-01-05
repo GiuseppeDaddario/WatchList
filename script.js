@@ -195,33 +195,44 @@ window.fetchDetailsAndAdd = async (str, btn) => {
 };
 
 function renderWatchlist() {
-    const box = document.getElementById('watchlist-items'); box.innerHTML='';
-    const list = ALL_USER_ITEMS.filter(i=>i.seasons_watched < i.total_seasons);
+    // 1. Clear both containers
+    const boxLive = document.getElementById('watchlist-live');
+    const boxAnime = document.getElementById('watchlist-anime');
+    boxLive.innerHTML = ''; boxAnime.innerHTML = '';
 
-    if(list.length===0) { document.getElementById('empty-list-msg').style.display='block'; return; }
-    document.getElementById('empty-list-msg').style.display='none';
+    // 2. Filter unfinished items
+    const list = ALL_USER_ITEMS.filter(i => i.seasons_watched < i.total_seasons);
 
-    list.forEach(i => {
-        const d = document.createElement('div'); d.className='glass-card';
-        let txt='', btn='';
+    // 3. Handle Empty State
+    if(list.length === 0) {
+        document.getElementById('empty-list-msg').style.display = 'block';
+        document.getElementById('section-live').style.display = 'none';
+        document.getElementById('section-anime').style.display = 'none';
+        return;
+    }
 
+    document.getElementById('empty-list-msg').style.display = 'none';
+    document.getElementById('section-live').style.display = 'block';
+    document.getElementById('section-anime').style.display = 'block';
+
+    // 4. Split Data
+    const liveItems = list.filter(i => i.type !== 'anime');
+    const animeItems = list.filter(i => i.type === 'anime');
+
+    // 5. Helper Function to Render Cards
+    const createCard = (i) => {
+        const d = document.createElement('div'); d.className = 'glass-card';
+        let txt = '', btn = '';
         const isMovie = i.type === 'movie';
-
-        // LOGIC: If it's a Movie, show Runtime.
-        // If it's TV/Anime with 1 Season, show "X Episodes".
-        // If it's TV/Anime with multiple seasons, show "Season X of Y".
 
         if(isMovie) {
             txt = `${i.type.toUpperCase()} • ${Math.floor(i.runtime_min/60)}h ${i.runtime_min%60}m`;
             btn = `<button class="btn-check" onclick="markSeason('${i.firebaseId}',${i.total_seasons},${i.seasons_watched})">Watched</button>`;
-        }
-        else if (i.total_seasons === 1) {
-            // It's a series, but only 1 season (e.g. Miniseries or One Piece format)
+        } else if (i.total_seasons === 1) {
             const eps = i.total_episodes ? `${i.total_episodes} Eps` : '1 Season';
             txt = `${i.type.toUpperCase()} • ${eps}`;
             btn = `<button class="btn-check" onclick="markSeason('${i.firebaseId}',${i.total_seasons},${i.seasons_watched})">Watched</button>`;
-        }
-        else {
+        } else {
             txt = `${i.type.toUpperCase()} • Season ${i.seasons_watched+1} of ${i.total_seasons}`;
             btn = `<button class="btn-check" onclick="markSeason('${i.firebaseId}',${i.total_seasons},${i.seasons_watched})"><i class="fa-solid fa-check"></i> S${i.seasons_watched+1} Done</button>`;
         }
@@ -233,14 +244,21 @@ function renderWatchlist() {
                 <div style="display:flex;gap:10px;margin-top:5px;">${btn}
                 <button class="btn-check" style="background:rgba(255,0,0,0.2)" onclick="removeItem('${i.firebaseId}')"><i class="fa-solid fa-trash"></i></button></div>
             </div>`;
-        box.appendChild(d);
-    });
+        return d;
+    };
+
+    // 6. Fill Live Container
+    if(liveItems.length === 0) boxLive.innerHTML = '<div style="font-size:12px; opacity:0.3; padding:10px;">No movies or TV shows.</div>';
+    else liveItems.forEach(i => boxLive.appendChild(createCard(i)));
+
+    // 7. Fill Anime Container
+    if(animeItems.length === 0) boxAnime.innerHTML = '<div style="font-size:12px; opacity:0.3; padding:10px;">No anime.</div>';
+    else animeItems.forEach(i => boxAnime.appendChild(createCard(i)));
 }
 
+// --- RENDER STATS ---
 function renderProfileStats() {
-    let minLive = 0; // Movies + TV time
-    let minAnime = 0; // Anime time
-    let ani = 0, mov = 0, tv = 0, eps = 0, comp = 0;
+    let minLive = 0, minAnime = 0, ani = 0, mov = 0, tv = 0, eps = 0, comp = 0;
     let genres = {}, maxMin = 0, titan = null;
 
     const box = document.getElementById('history-list'); box.innerHTML='';
@@ -250,46 +268,30 @@ function renderProfileStats() {
     ALL_USER_ITEMS.forEach(i => {
         const w = i.seasons_watched || 0;
         if(w > 0) {
-            // -- LOGIC: Counts --
-            if(i.type === 'anime') ani++;
-            else if(i.type === 'movie') mov++;
-            else tv += w;
-
-            // -- LOGIC: Time --
+            if(i.type === 'anime') ani++; else if(i.type === 'movie') mov++; else tv += w;
             const m = w * i.runtime_min;
-            if (i.type === 'anime') minAnime += m;
-            else minLive += m;
-
-            // -- LOGIC: Titan --
+            if (i.type === 'anime') minAnime += m; else minLive += m;
             if(m > maxMin) { maxMin = m; titan = i; }
-
-            // -- LOGIC: Eps (Strictly no movies) --
-            if(i.type !== 'movie') {
-                // Since we don't store exact eps, we estimate standard season length (12 eps)
-                // This prevents movies (1 "season") from counting as 1 episode.
-                eps += (w * 12);
+            if(i.type !== 'movie') eps += (w * 12);
+            if(i.genres) {
+                i.genres.forEach(g => {
+                    if (g !== 'Animation') {
+                        genres[g] = (genres[g]||0) + 1;
+                    }
+                });
             }
-
-            // -- LOGIC: Genres --
-            if(i.genres) i.genres.forEach(g => genres[g] = (genres[g]||0)+1);
         }
         if(w >= i.total_seasons && i.total_seasons > 0) comp++;
     });
 
-    // --- RENDER HISTORY ---
+    // --- RENDER FULL HISTORY ---
     if(hist.length === 0) box.innerHTML = '<div style="opacity:0.5;text-align:center;font-size:12px;">No history.</div>';
-    else hist.slice(0, 10).forEach(i => {
+    else hist.forEach(i => {  // REMOVED .slice(0,10)
         const fin = i.seasons_watched >= i.total_seasons;
         let sub = '';
-
-        if (i.type === 'movie') {
-            sub = 'Watched';
-        } else if (i.total_seasons === 1) {
-            // Show episodes for single season shows in history too
-            sub = i.total_episodes ? `${i.total_episodes} Eps` : 'Watched';
-        } else {
-            sub = `S${i.seasons_watched} / S${i.total_seasons}`;
-        }
+        if (i.type === 'movie') sub = 'Watched';
+        else if (i.total_seasons === 1) sub = i.total_episodes ? `${i.total_episodes} Eps` : 'Watched';
+        else sub = `S${i.seasons_watched} / S${i.total_seasons}`;
 
         const d = document.createElement('div'); d.className='history-item';
         d.innerHTML=`
@@ -302,34 +304,26 @@ function renderProfileStats() {
         box.appendChild(d);
     });
 
-    // --- RENDER DYNAMIC TIME ---
     const formatDynamicTime = (minutes) => {
         if(minutes < 60) return `${minutes}m`;
-
         const hours = minutes / 60;
-        if(hours < 24) return `${Math.round(hours * 10) / 10}h`; // e.g. 5.5h
-
+        if(hours < 24) return `${Math.round(hours * 10) / 10}h`;
         const days = hours / 24;
-        if(days < 30) return `${Math.round(days * 10) / 10}d`; // e.g. 12.5d
-
-        const months = days / 30.44; // Avg days in month
-        if(months < 12) return `${Math.round(months * 10) / 10}mo`; // e.g. 3.2mo
-
+        if(days < 30) return `${Math.round(days * 10) / 10}d`;
+        const months = days / 30.44;
+        if(months < 12) return `${Math.round(months * 10) / 10}mo`;
         const years = days / 365.25;
-        return `${Math.round(years * 10) / 10}y`; // e.g. 1.5y
+        return `${Math.round(years * 10) / 10}y`;
     };
 
     document.getElementById('stat-time-main').innerText = formatDynamicTime(minLive);
     document.getElementById('stat-time-anime').innerText = formatDynamicTime(minAnime);
-
     document.getElementById('stat-total-eps').innerText = eps;
     document.getElementById('stat-movies').innerText = mov;
     document.getElementById('stat-anime').innerText = ani;
-
     const started = ALL_USER_ITEMS.filter(i => i.seasons_watched > 0).length;
     document.getElementById('stat-completed-ratio').innerText = started===0 ? '0%' : `${Math.round((comp/started)*100)}%`;
 
-    // --- RENDER TITAN ---
     const tBox = document.getElementById('titan-container');
     if(titan) {
         tBox.innerHTML=`
@@ -343,9 +337,8 @@ function renderProfileStats() {
         </div>`;
     } else tBox.innerHTML='';
 
-    // --- RENDER GENRES ---
     const gBox = document.getElementById('genre-chart'); gBox.innerHTML='';
-    const sGen = Object.entries(genres).sort((a,b)=>b[1]-a[1]).slice(0,4);
+    const sGen = Object.entries(genres).sort((a,b)=>b[1]-a[1]);
     if(sGen.length===0) gBox.innerHTML='<div style="font-size:11px;opacity:0.5;text-align:center">No data.</div>';
     else {
         const max = sGen[0][1];
@@ -358,6 +351,19 @@ function renderProfileStats() {
         });
     }
 }
+
+window.toggleHistory = (btn) => {
+    const wrapper = document.getElementById('history-wrapper');
+    const isHidden = wrapper.style.display === 'none';
+
+    if (isHidden) {
+        wrapper.style.display = 'block';
+        btn.classList.add('active');
+    } else {
+        wrapper.style.display = 'none';
+        btn.classList.remove('active');
+    }
+};
 
 window.markSeason = async (id, tot, cur) => {
     await updateDoc(doc(db,"users",CURRENT_USER_ID,"watchlist",id), {seasons_watched:cur+1});
