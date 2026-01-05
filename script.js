@@ -29,22 +29,40 @@ let RAW_SEARCH_RESULTS = [];
 let ALL_USER_ITEMS = [];
 
 // --- AUTH ---
+// --- AUTH ---
 onAuthStateChanged(auth, (user) => {
+    const loader = document.getElementById('loading-overlay');
+
     if (user) {
         CURRENT_USER_ID = user.uid;
-        document.getElementById('login-view').style.display = 'none';
-        document.getElementById('app-container').style.display = 'flex';
+
+        // Load data first
         if(user.photoURL) document.getElementById('user-profile-pic').src = user.photoURL;
         document.getElementById('user-profile-pic').style.display = 'block';
         document.getElementById('default-avatar-icon').style.display = 'none';
-        initDataListeners();
-        loadTrending();
+
+        initDataListeners(); // Start listening to DB
+        loadTrending();      // Load background data
+
+        // Hide Loader, Show App
+        document.getElementById('login-view').style.display = 'none';
+        document.getElementById('app-container').style.display = 'flex';
+
+        // Small delay to smooth out the transition
+        setTimeout(() => {
+            if(loader) { loader.style.opacity = '0'; setTimeout(()=>loader.remove(), 500); }
+        }, 500);
+
     } else {
         CURRENT_USER_ID = null;
-        document.getElementById('login-view').style.display = 'flex';
+        // Hide Loader, Show Login
         document.getElementById('app-container').style.display = 'none';
+        document.getElementById('login-view').style.display = 'flex';
+
+        if(loader) { loader.style.opacity = '0'; setTimeout(()=>loader.remove(), 500); }
     }
 });
+
 document.getElementById('google-login-btn').addEventListener('click', () => signInWithPopup(auth, provider));
 document.getElementById('logout-btn').addEventListener('click', () => signOut(auth).then(() => location.reload()));
 
@@ -198,52 +216,112 @@ function renderWatchlist() {
 }
 
 function renderProfileStats() {
-    let min=0, ani=0, mov=0, tv=0, eps=0, comp=0, genres={}, maxMin=0, titan=null;
+    let minLive = 0; // Movies + TV time
+    let minAnime = 0; // Anime time
+    let ani = 0, mov = 0, tv = 0, eps = 0, comp = 0;
+    let genres = {}, maxMin = 0, titan = null;
+
     const box = document.getElementById('history-list'); box.innerHTML='';
-    let hist = ALL_USER_ITEMS.filter(i=>i.seasons_watched>0);
-    hist.sort((a,b)=>a.title.localeCompare(b.title));
+    let hist = ALL_USER_ITEMS.filter(i=>i.seasons_watched > 0);
+    hist.sort((a,b) => (b.timestamp||0) - (a.timestamp||0));
 
     ALL_USER_ITEMS.forEach(i => {
-        const w = i.seasons_watched||0;
-        if(w>0) {
-            if(i.type==='anime') ani++; else if(i.type==='movie') mov++; else tv+=w;
-            const m = w*i.runtime_min; min+=m;
-            if(m>maxMin) { maxMin=m; titan=i; }
-            if(i.total_seasons===1) eps++; else eps+=(w*10);
-            if(i.genres) i.genres.forEach(g=>genres[g]=(genres[g]||0)+1);
+        const w = i.seasons_watched || 0;
+        if(w > 0) {
+            // -- LOGIC: Counts --
+            if(i.type === 'anime') ani++;
+            else if(i.type === 'movie') mov++;
+            else tv += w;
+
+            // -- LOGIC: Time --
+            const m = w * i.runtime_min;
+            if (i.type === 'anime') minAnime += m;
+            else minLive += m;
+
+            // -- LOGIC: Titan --
+            if(m > maxMin) { maxMin = m; titan = i; }
+
+            // -- LOGIC: Eps (Strictly no movies) --
+            if(i.type !== 'movie') {
+                // Since we don't store exact eps, we estimate standard season length (12 eps)
+                // This prevents movies (1 "season") from counting as 1 episode.
+                eps += (w * 12);
+            }
+
+            // -- LOGIC: Genres --
+            if(i.genres) i.genres.forEach(g => genres[g] = (genres[g]||0)+1);
         }
-        if(w>=i.total_seasons && i.total_seasons>0) comp++;
+        if(w >= i.total_seasons && i.total_seasons > 0) comp++;
     });
 
-    if(hist.length===0) box.innerHTML='<div style="opacity:0.5;text-align:center;">No history.</div>';
-    else hist.forEach(i => {
-        const fin = i.seasons_watched>=i.total_seasons;
-        const sub = i.total_seasons===1 ? 'Watched' : `S${i.seasons_watched} / S${i.total_seasons}`;
+    // --- RENDER HISTORY ---
+    if(hist.length === 0) box.innerHTML = '<div style="opacity:0.5;text-align:center;font-size:12px;">No history.</div>';
+    else hist.slice(0, 10).forEach(i => {
+        const fin = i.seasons_watched >= i.total_seasons;
+        const sub = i.total_seasons === 1 ? 'Watched' : `S${i.seasons_watched} / S${i.total_seasons}`;
         const d = document.createElement('div'); d.className='history-item';
-        d.innerHTML=`<img src="${i.poster}"><div class="history-info" style="flex:1"><h4>${i.title} ${fin?'<i class="fa-solid fa-circle-check" style="color:#2ecc71;font-size:12px;"></i>':''}</h4><span>${sub}</span></div><button class="btn-icon-del" onclick="removeItem('${i.firebaseId}')"><i class="fa-solid fa-trash"></i></button>`;
+        d.innerHTML=`
+            <img src="${i.poster}">
+            <div class="history-info" style="flex:1">
+                <h4>${i.title} ${fin?'<i class="fa-solid fa-check" style="color:#2ecc71;font-size:10px;"></i>':''}</h4>
+                <span>${sub}</span>
+            </div>
+            <button class="btn-icon-del" onclick="removeItem('${i.firebaseId}')"><i class="fa-solid fa-xmark"></i></button>`;
         box.appendChild(d);
     });
 
-    document.getElementById('stat-big-time').innerText = `${Math.floor(min/60)}h ${min%60}m`;
-    document.getElementById('stat-days-calc').innerText = `${(min/1440).toFixed(1)} days`;
+    // --- RENDER DYNAMIC TIME ---
+    const formatDynamicTime = (minutes) => {
+        if(minutes < 60) return `${minutes}m`;
+
+        const hours = minutes / 60;
+        if(hours < 24) return `${Math.round(hours * 10) / 10}h`; // e.g. 5.5h
+
+        const days = hours / 24;
+        if(days < 30) return `${Math.round(days * 10) / 10}d`; // e.g. 12.5d
+
+        const months = days / 30.44; // Avg days in month
+        if(months < 12) return `${Math.round(months * 10) / 10}mo`; // e.g. 3.2mo
+
+        const years = days / 365.25;
+        return `${Math.round(years * 10) / 10}y`; // e.g. 1.5y
+    };
+
+    document.getElementById('stat-time-main').innerText = formatDynamicTime(minLive);
+    document.getElementById('stat-time-anime').innerText = formatDynamicTime(minAnime);
+
     document.getElementById('stat-total-eps').innerText = eps;
     document.getElementById('stat-movies').innerText = mov;
     document.getElementById('stat-anime').innerText = ani;
-    const started = ALL_USER_ITEMS.filter(i=>i.seasons_watched>0).length;
-    document.getElementById('stat-completed-ratio').innerText = started===0?'0%':`${Math.round((comp/started)*100)}%`;
 
+    const started = ALL_USER_ITEMS.filter(i => i.seasons_watched > 0).length;
+    document.getElementById('stat-completed-ratio').innerText = started===0 ? '0%' : `${Math.round((comp/started)*100)}%`;
+
+    // --- RENDER TITAN ---
     const tBox = document.getElementById('titan-container');
-    if(titan) tBox.innerHTML=`<div class="titan-card"><img src="${titan.poster}" class="titan-poster"><div><div style="font-size:10px;color:#f1c40f;font-weight:bold;text-transform:uppercase;">Longest Obsession</div><div style="font-size:16px;font-weight:bold;">${titan.title}</div><div style="font-size:12px;opacity:0.7;">${Math.floor(maxMin/60)} hours</div></div></div>`;
-    else tBox.innerHTML='';
+    if(titan) {
+        tBox.innerHTML=`
+        <div class="titan-card">
+            <img src="${titan.poster}" class="titan-poster">
+            <div style="flex:1">
+                <div style="font-size:9px;color:#f1c40f;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Longest Obsession</div>
+                <div style="font-size:14px;font-weight:700;margin-top:2px;">${titan.title}</div>
+                <div style="font-size:11px;opacity:0.7;">${formatDynamicTime(maxMin)} total</div>
+            </div>
+        </div>`;
+    } else tBox.innerHTML='';
 
+    // --- RENDER GENRES ---
     const gBox = document.getElementById('genre-chart'); gBox.innerHTML='';
-    const sGen = Object.entries(genres).sort((a,b)=>b[1]-a[1]).slice(0,5);
-    if(sGen.length===0) gBox.innerHTML='<div style="font-size:12px;opacity:0.5;text-align:center">No data.</div>';
+    const sGen = Object.entries(genres).sort((a,b)=>b[1]-a[1]).slice(0,4);
+    if(sGen.length===0) gBox.innerHTML='<div style="font-size:11px;opacity:0.5;text-align:center">No data.</div>';
     else {
         const max = sGen[0][1];
         sGen.forEach(([n,c]) => {
             const row = document.createElement('div'); row.className='genre-row';
-            row.innerHTML=`<div class="genre-name">${n}</div><div class="genre-track"><div class="genre-fill" style="width:${(c/max)*100}%;background:hsl(${Math.floor(Math.random()*360)},70%,60%);"></div></div><div class="genre-count">${c}</div>`;
+            row.innerHTML=`<div class="genre-name">${n}</div>
+            <div class="genre-track"><div class="genre-fill" style="width:${(c/max)*100}%;background:hsl(${Math.random()*360},70%,60%);"></div></div>
+            <div class="genre-count">${c}</div>`;
             gBox.appendChild(row);
         });
     }
