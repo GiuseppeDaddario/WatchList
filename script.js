@@ -168,7 +168,34 @@ window.fetchDetailsAndAdd = async (str, btn) => {
     btn.innerHTML = '<i class="fa-solid fa-spinner"></i>'; btn.disabled=true;
 
     const item = JSON.parse(decodeURIComponent(str));
-    // Initialize total_episodes to 0
+
+    // 1. CHECK IF ALREADY EXISTS
+    // We look for an item with the same TMDB ID in your loaded list
+    const existingItem = ALL_USER_ITEMS.find(i => i.id === item.id);
+
+    if (existingItem) {
+        if (existingItem.dropped) {
+            // CASE A: It was dropped -> Restore it (Undrop)
+            try {
+                await updateDoc(doc(db, "users", CURRENT_USER_ID, "watchlist", existingItem.firebaseId), {
+                    dropped: false,
+                    timestamp: Date.now() // Optional: Bump it to top of list
+                });
+                btn.innerHTML = '<i class="fa-solid fa-rotate-left"></i>';
+                showToast(`Resumed S${existingItem.seasons_watched + 1}`);
+            } catch(e) { console.error(e); }
+        } else {
+            // CASE B: It is already active in the list
+            showToast("Already in Watchlist");
+            btn.innerHTML = '<i class="fa-solid fa-check"></i>';
+        }
+
+        // Reset button after delay
+        setTimeout(()=>{ btn.innerHTML=origTxt; btn.disabled=false; }, 2000);
+        return; // STOP HERE
+    }
+
+    // 2. NEW ITEM LOGIC (Only runs if item does NOT exist)
     let final = {
         id:item.id, title:item.title, poster:item.poster, type:item.app_type,
         total_seasons:1, total_episodes:0, runtime_min:0, seasons_watched:0, genres:[]
@@ -181,15 +208,14 @@ window.fetchDetailsAndAdd = async (str, btn) => {
 
         if(item.media_type==='tv') {
             final.total_seasons = d.number_of_seasons||1;
-            final.total_episodes = d.number_of_episodes||0; // SAVE EPISODE COUNT
+            final.total_episodes = d.number_of_episodes||0;
 
             const avg = (d.episode_run_time && d.episode_run_time[0])||24;
-            // Use API episodes if available, else calc
             const eps = final.total_episodes || 12;
             final.runtime_min = Math.floor((avg*eps)/final.total_seasons);
         } else {
             final.runtime_min = d.runtime||100;
-            final.total_episodes = 1; // Movies count as 1 entry
+            final.total_episodes = 1;
         }
 
         await addDoc(collection(db,"users",CURRENT_USER_ID,"watchlist"), {...final, timestamp:Date.now()});
@@ -216,8 +242,8 @@ function renderWatchlist() {
     }
 
     document.getElementById('empty-list-msg').style.display = 'none';
-    document.getElementById('section-live').style.display = 'block';
-    document.getElementById('section-anime').style.display = 'block';
+    document.querySelector('.wl-tabs').style.display = 'flex';
+
 
     const liveItems = list.filter(i => i.type !== 'anime');
     const animeItems = list.filter(i => i.type === 'anime');
@@ -255,6 +281,21 @@ function renderWatchlist() {
     if(animeItems.length === 0) boxAnime.innerHTML = '<div style="font-size:12px; opacity:0.3; padding:10px;">No anime.</div>';
     else animeItems.forEach(i => boxAnime.appendChild(createCard(i)));
 }
+
+window.switchWlTab = (type, btn) => {
+    // 1. Toggle Button UI
+    document.querySelectorAll('.wl-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    // 2. Toggle Section Visibility
+    document.querySelectorAll('.wl-section').forEach(s => s.classList.remove('active'));
+
+    if(type === 'live') {
+        document.getElementById('section-live').classList.add('active');
+    } else {
+        document.getElementById('section-anime').classList.add('active');
+    }
+};
 
 // --- RENDER STATS ---
 function renderProfileStats() {

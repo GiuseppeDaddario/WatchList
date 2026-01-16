@@ -58,20 +58,24 @@
             </div>
 
             <div id="watchlist-view" class="view">
-
                 <div id="empty-list-msg" style="display:none; text-align:center; padding:40px; opacity:0.5;">
                     <i class="fa-solid fa-couch" style="font-size:32px; margin-bottom:10px;"></i><br>
                     Nothing to watch!
                 </div>
 
-                <div id="section-live" style="margin-bottom: 25px;">
-                    <div class="section-header" style="color:#3498db;">Movies & TV</div>
-                    <div id="watchlist-live" class="list-layout"></div>
+                <div class="wl-tabs">
+                    <button class="wl-tab active" onclick="switchWlTab('live', this)">Movies & TV</button>
+                    <button class="wl-tab" onclick="switchWlTab('anime', this)">Anime</button>
                 </div>
 
-                <div id="section-anime">
-                    <div class="section-header" style="color:#e84393;">Anime</div>
-                    <div id="watchlist-anime" class="list-layout"></div>
+                <div id="wl-content-area">
+                    <div id="section-live" class="wl-section active">
+                        <div id="watchlist-live" class="list-layout"></div>
+                    </div>
+
+                    <div id="section-anime" class="wl-section">
+                        <div id="watchlist-anime" class="list-layout"></div>
+                    </div>
                 </div>
             </div>
 
