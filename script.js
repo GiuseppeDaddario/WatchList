@@ -97,7 +97,7 @@ async function loadTrending() {
     const el = document.getElementById('search-results');
     el.innerHTML = '<div style="color:white;text-align:center;padding:40px;"><i class="fa-solid fa-spinner fa-spin"></i><br>Loading...</div>';
     try {
-        const res = await fetch(`${TMDB_BASE}/trending/all/week?api_key=${TMDB_KEY}`);
+        const res = await fetch(`${TMDB_BASE}/trending/all/week?api_key=${TMDB_KEY}&language=it-IT`);
         const data = await res.json();
         RAW_SEARCH_RESULTS = (data.results||[]).filter(i=>i.media_type!=='person').map(i=>({
             id: i.id, title: i.title||i.name,
@@ -115,7 +115,7 @@ document.getElementById('search-btn').addEventListener('click', async () => {
     if(!q) return;
     document.getElementById('search-results').innerHTML = '<div style="color:white;text-align:center;padding:20px;">Searching...</div>';
     try {
-        const res = await fetch(`${TMDB_BASE}/search/multi?api_key=${TMDB_KEY}&query=${q}`);
+        const res = await fetch(`${TMDB_BASE}/search/multi?api_key=${TMDB_KEY}&query=${q}&language=it-IT`);
         const data = await res.json();
         if(data.results) {
             RAW_SEARCH_RESULTS = data.results.filter(i=>i.media_type==='tv'||i.media_type==='movie').map(i=>({
@@ -128,6 +128,12 @@ document.getElementById('search-btn').addEventListener('click', async () => {
         }
         applyLocalFilter('all');
     } catch(e) { console.error(e); }
+});
+
+document.getElementById('search-input').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        document.getElementById('search-btn').click();
+    }
 });
 
 window.applyLocalFilter = (type, btn) => {
@@ -170,7 +176,7 @@ window.fetchDetailsAndAdd = async (str, btn) => {
 
     try {
         const ep = item.media_type==='tv'?'tv':'movie';
-        const d = await fetch(`${TMDB_BASE}/${ep}/${item.id}?api_key=${TMDB_KEY}`).then(r=>r.json());
+        const d = await fetch(`${TMDB_BASE}/${ep}/${item.id}?api_key=${TMDB_KEY}&language=it-IT`).then(r=>r.json());
         if(d.genres) final.genres = d.genres.map(g=>g.name);
 
         if(item.media_type==='tv') {
@@ -195,15 +201,13 @@ window.fetchDetailsAndAdd = async (str, btn) => {
 };
 
 function renderWatchlist() {
-    // 1. Clear both containers
     const boxLive = document.getElementById('watchlist-live');
     const boxAnime = document.getElementById('watchlist-anime');
     boxLive.innerHTML = ''; boxAnime.innerHTML = '';
 
-    // 2. Filter unfinished items
-    const list = ALL_USER_ITEMS.filter(i => i.seasons_watched < i.total_seasons);
+    // --- CHANGED LINE BELOW: Added "&& !i.dropped" ---
+    const list = ALL_USER_ITEMS.filter(i => i.seasons_watched < i.total_seasons && !i.dropped);
 
-    // 3. Handle Empty State
     if(list.length === 0) {
         document.getElementById('empty-list-msg').style.display = 'block';
         document.getElementById('section-live').style.display = 'none';
@@ -215,11 +219,9 @@ function renderWatchlist() {
     document.getElementById('section-live').style.display = 'block';
     document.getElementById('section-anime').style.display = 'block';
 
-    // 4. Split Data
     const liveItems = list.filter(i => i.type !== 'anime');
     const animeItems = list.filter(i => i.type === 'anime');
 
-    // 5. Helper Function to Render Cards
     const createCard = (i) => {
         const d = document.createElement('div'); d.className = 'glass-card';
         let txt = '', btn = '';
@@ -247,11 +249,9 @@ function renderWatchlist() {
         return d;
     };
 
-    // 6. Fill Live Container
     if(liveItems.length === 0) boxLive.innerHTML = '<div style="font-size:12px; opacity:0.3; padding:10px;">No movies or TV shows.</div>';
     else liveItems.forEach(i => boxLive.appendChild(createCard(i)));
 
-    // 7. Fill Anime Container
     if(animeItems.length === 0) boxAnime.innerHTML = '<div style="font-size:12px; opacity:0.3; padding:10px;">No anime.</div>';
     else animeItems.forEach(i => boxAnime.appendChild(createCard(i)));
 }
@@ -284,12 +284,14 @@ function renderProfileStats() {
         if(w >= i.total_seasons && i.total_seasons > 0) comp++;
     });
 
-    // --- RENDER FULL HISTORY ---
     if(hist.length === 0) box.innerHTML = '<div style="opacity:0.5;text-align:center;font-size:12px;">No history.</div>';
-    else hist.forEach(i => {  // REMOVED .slice(0,10)
+    else hist.forEach(i => {
         const fin = i.seasons_watched >= i.total_seasons;
         let sub = '';
-        if (i.type === 'movie') sub = 'Watched';
+
+        // --- LOGIC FOR SUBTITLE ---
+        if (i.dropped) sub = `<span style="color:#e74c3c">Dropped (S${i.seasons_watched})</span>`;
+        else if (i.type === 'movie') sub = 'Watched';
         else if (i.total_seasons === 1) sub = i.total_episodes ? `${i.total_episodes} Eps` : 'Watched';
         else sub = `S${i.seasons_watched} / S${i.total_seasons}`;
 
@@ -304,6 +306,7 @@ function renderProfileStats() {
         box.appendChild(d);
     });
 
+    // ... (Keep the rest of the stats calculation logic below unchanged) ...
     const formatDynamicTime = (minutes) => {
         if(minutes < 60) return `${minutes}m`;
         const hours = minutes / 60;
@@ -370,8 +373,27 @@ window.markSeason = async (id, tot, cur) => {
     showToast(cur+1>=tot ? '<i class="fa-solid fa-trophy"></i> Completed!' : '<i class="fa-solid fa-check"></i> Watched');
 };
 window.removeItem = async (id) => {
-    await deleteDoc(doc(db,"users",CURRENT_USER_ID,"watchlist",id));
-    showToast('Removed');
+    const item = ALL_USER_ITEMS.find(i => i.firebaseId === id);
+    if (!item) return;
+
+    // Check if item is "In Progress" (Has history, not finished, not already dropped)
+    const isInProgress = (item.seasons_watched > 0) &&
+                         (item.seasons_watched < item.total_seasons) &&
+                         (!item.dropped);
+
+    if (isInProgress) {
+        // --- SOFT DELETE (DROP) ---
+        // Keeps the data in Firebase but adds a flag to hide it from the main list
+        await updateDoc(doc(db, "users", CURRENT_USER_ID, "watchlist", id), { dropped: true });
+        showToast('<i class="fa-solid fa-box-archive"></i> Moved to History');
+
+    } else {
+        // --- HARD DELETE ---
+        // Used for: Items with 0 progress, Finished items, or items already in History
+        await deleteDoc(doc(db, "users", CURRENT_USER_ID, "watchlist", id));
+        showToast('Permanently Removed');
+
+    }
 };
 window.switchTab = (t) => {
     document.querySelectorAll('.view').forEach(e=>e.classList.remove('active'));
@@ -382,3 +404,4 @@ window.switchTab = (t) => {
     if(t==='profile')document.querySelectorAll('.nav-item')[2].classList.add('active');
     document.getElementById('page-title').innerText = t.charAt(0).toUpperCase()+t.slice(1);
 };
+
