@@ -81,25 +81,21 @@
 
             <div id="profile-view" class="view">
 
-            <div class="glass-card" style="flex-direction: column; gap: 0; padding: 15px; align-items: stretch;">
-                <h2 style="margin:0 0 10px 0; font-size:12px; opacity:0.5; text-transform:uppercase; letter-spacing:1px; text-align: center;">Time Watched</h2>
-
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-
-                    <div style="background:rgba(255,255,255,0.05); border-radius:12px; padding:15px; text-align:center; position:relative; overflow:hidden;">
-                        <div class="glow-bg" style="background:#3498db;"></div>
-                        <div id="stat-time-main" style="font-size:22px; font-weight:800; color:#fff; position:relative; z-index:2;">0h</div>
-                        <div style="font-size:10px; opacity:0.7; position:relative; z-index:2; margin-top:2px;">Movies & TV</div>
+                <div class="glass-card" style="flex-direction: column; gap: 0; padding: 15px; align-items: stretch;">
+                    <h2 style="margin:0 0 10px 0; font-size:12px; opacity:0.5; text-transform:uppercase; letter-spacing:1px; text-align: center;">Time Watched</h2>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                        <div style="background:rgba(255,255,255,0.05); border-radius:12px; padding:15px; text-align:center; position:relative; overflow:hidden;">
+                            <div class="glow-bg" style="background:#3498db;"></div>
+                            <div id="stat-time-main" style="font-size:22px; font-weight:800; color:#fff; position:relative; z-index:2;">0h</div>
+                            <div style="font-size:10px; opacity:0.7; position:relative; z-index:2; margin-top:2px;">Movies & TV</div>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.05); border-radius:12px; padding:15px; text-align:center; position:relative; overflow:hidden;">
+                            <div class="glow-bg" style="background:#e84393;"></div>
+                            <div id="stat-time-anime" style="font-size:22px; font-weight:800; color:#fff; position:relative; z-index:2;">0h</div>
+                            <div style="font-size:10px; opacity:0.7; position:relative; z-index:2; margin-top:2px;">Anime</div>
+                        </div>
                     </div>
-
-                    <div style="background:rgba(255,255,255,0.05); border-radius:12px; padding:15px; text-align:center; position:relative; overflow:hidden;">
-                        <div class="glow-bg" style="background:#e84393;"></div>
-                        <div id="stat-time-anime" style="font-size:22px; font-weight:800; color:#fff; position:relative; z-index:2;">0h</div>
-                        <div style="font-size:10px; opacity:0.7; position:relative; z-index:2; margin-top:2px;">Anime</div>
-                    </div>
-
                 </div>
-            </div>
 
                 <div class="stats-grid">
                     <div class="stat-badge"><span class="stat-value" id="stat-completed-ratio">0%</span><span class="stat-label">Done</span></div>
@@ -109,22 +105,29 @@
                 </div>
 
                 <div id="titan-container"></div>
-
                 <div class="glass-card" style="flex-direction:column; gap:10px;">
                     <div class="section-header" style="margin:0;">Top Genres</div>
                     <div id="genre-chart"></div>
                 </div>
 
-                <div class="glass-card" style="flex-direction:column; gap:10px;">
-                    <button class="btn-toggle-history" onclick="toggleHistory(this)">
-                        <span>History</span>
-                        <i class="fa-solid fa-chevron-down"></i>
-                    </button>
-                    <div id="history-wrapper" style="display: none; width: 100%;">
-                        <div id="history-list" class="history-grid"></div>
+                <div style="margin-top: 20px;">
+                    <div class="section-header">History</div>
+
+                    <div class="wl-tabs">
+                        <button class="wl-tab active" onclick="switchHistoryTab('live', this)">Movies & TV</button>
+                        <button class="wl-tab" onclick="switchHistoryTab('anime', this)">Anime</button>
+                    </div>
+
+                    <div id="history-content-area">
+                        <div id="history-section-live" class="wl-section active">
+                            <div id="history-live" class="history-grid"></div>
+                        </div>
+
+                        <div id="history-section-anime" class="wl-section">
+                            <div id="history-anime" class="history-grid"></div>
+                        </div>
                     </div>
                 </div>
-
             </div>
         </main>
 
@@ -136,6 +139,6 @@
     </div>
 
     <div id="toast-container"></div>
-    <script type="module" src="script.js"></script>
+    <script type="module" src="src/main.js"></script>
 </body>
 </html>
