@@ -6,11 +6,6 @@
       "**/.*",
       "**/node_modules/**"
     ],
-    "rewrites": [
-      {
-        "source": "!**/*.{js,css,png,jpg,jpeg,svg,ico,json,map}",
-        "destination": "/index.html"
-      }
-    ]
+    "rewrites": [ { "source": "**", "destination": "/index.html" } ]
   }
 }
