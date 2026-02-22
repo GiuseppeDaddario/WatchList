@@ -1,5 +1,97 @@
 import { state } from "./state.js";
 import { markSeason, removeItem } from "./db.js";
+import { fetchDetails } from "./api.js";
+
+let selectedItemRequestId = 0;
+
+function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "\"": "&quot;",
+        "'": "&#39;"
+    }[char]));
+}
+
+function formatMinutes(minutes) {
+    if (!minutes || Number.isNaN(minutes)) return "";
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    if (h <= 0) return `${m}m`;
+    return `${h}h ${m}m`;
+}
+
+function showSelectedItemEmpty(msg = "Tap a title to see more info.", prefix = "") {
+    const empty = document.getElementById(`${prefix}selected-item-empty`);
+    const content = document.getElementById(`${prefix}selected-item-content`);
+    if(!empty || !content) return;
+    empty.textContent = msg;
+    empty.style.display = 'block';
+    content.style.display = 'none';
+    content.innerHTML = '';
+}
+
+function renderSelectedItemContent(item, details, loading = false, prefix = "") {
+    const empty = document.getElementById(`${prefix}selected-item-empty`);
+    const content = document.getElementById(`${prefix}selected-item-content`);
+    if(!empty || !content) return;
+
+    const mediaType = (item.app_type || item.type || item.media_type || "title").toUpperCase();
+    const year = item.year || (details?.release_date || details?.first_air_date || "").substring(0, 4) || "N/A";
+    const subtitle = `${mediaType} • ${year}`;
+
+    const tags = [];
+    if(details?.vote_average) tags.push(`Rating ${details.vote_average.toFixed(1)}/10`);
+    if(details?.runtime) tags.push(formatMinutes(details.runtime));
+    if(details?.number_of_seasons) tags.push(`${details.number_of_seasons} season${details.number_of_seasons > 1 ? 's' : ''}`);
+    if(details?.number_of_episodes) tags.push(`${details.number_of_episodes} episodes`);
+    if(details?.genres?.length) details.genres.slice(0, 4).forEach((g) => tags.push(g.name));
+
+    const safeTitle = escapeHtml(item.title || "Untitled");
+    const safePoster = escapeHtml(item.poster || "");
+    const safeSubtitle = escapeHtml(subtitle);
+    const safeOverview = escapeHtml(
+        loading
+            ? "Loading details..."
+            : (details?.overview || "No description available for this title.")
+    );
+
+    content.innerHTML = `
+        <div class="selected-item-header">
+            <img src="${safePoster}" alt="${safeTitle}" class="selected-item-poster">
+            <div style="flex:1;">
+                <h3 class="selected-item-title">${safeTitle}</h3>
+                <div class="selected-item-subtitle">${safeSubtitle}</div>
+                <div class="selected-item-tags">
+                    ${tags.slice(0, 6).map((tag) => `<span class="selected-item-tag">${escapeHtml(tag)}</span>`).join('')}
+                </div>
+            </div>
+        </div>
+        <p class="selected-item-overview">${safeOverview}</p>`;
+
+    empty.style.display = 'none';
+    content.style.display = 'block';
+}
+
+export async function showItemInfo(item, prefix = "") {
+    if(!item) return;
+    const requestId = ++selectedItemRequestId;
+    renderSelectedItemContent(item, null, true, prefix);
+
+    try {
+        const mediaType = item.media_type || (item.type === 'movie' ? 'movie' : 'tv');
+        // Use fallback logic just in case the Watchlist item saves the API ID differently
+        const itemId = item.id || item.api_id || item.tmdbId;
+        const details = await fetchDetails(itemId, mediaType);
+
+        if(requestId !== selectedItemRequestId) return;
+        renderSelectedItemContent(item, details, false, prefix);
+    } catch (e) {
+        if(requestId !== selectedItemRequestId) return;
+        renderSelectedItemContent(item, null, false, prefix);
+    }
+}
 
 export function showToast(msg) {
     const box = document.getElementById('toast-container');
@@ -47,19 +139,41 @@ export function applyLocalFilter(type, btn) {
     box.innerHTML = '';
     const list = type==='all' ? state.searchResults : state.searchResults.filter(i=>i.app_type===type);
 
-    if(list.length===0) { box.innerHTML='<div style="opacity:0.5;text-align:center;">No results.</div>'; return; }
+    if(list.length===0) {
+        box.innerHTML='<div style="opacity:0.5;text-align:center;">No results.</div>';
+        showSelectedItemEmpty("No title selected.");
+        return;
+    }
+
+    showSelectedItemEmpty();
 
     list.forEach(item => {
         const d = document.createElement('div'); d.className='glass-card';
-        // Note: fetchDetailsAndAdd is attached to window in main.js
+        d.style.cursor = 'pointer';
+        d.setAttribute('role', 'button');
+        d.tabIndex = 0;
         const safeItemString = encodeURIComponent(JSON.stringify(item)).replace(/'/g, "%27");
         d.innerHTML = `
             <img src="${item.poster}" class="poster">
             <div class="card-info">
                 <h3 class="card-title">${item.title}</h3>
                 <div class="card-meta">${item.app_type.toUpperCase()} • ${item.year}</div>
-                <button class="btn-add" onclick="window.fetchDetailsAndAdd('${safeItemString}', this)">+ Add</button>
+                <button class="btn-add">+ Add</button>
             </div>`;
+
+        const addBtn = d.querySelector('.btn-add');
+        addBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            window.fetchDetailsAndAdd(safeItemString, addBtn);
+        });
+
+        d.addEventListener('click', () => showItemInfo(item));
+        d.addEventListener('keydown', (event) => {
+            if(event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                showItemInfo(item);
+            }
+        });
         box.appendChild(d);
     });
 }
@@ -103,7 +217,10 @@ export function renderWatchlist() {
     const animeItems = list.filter(i => i.type === 'anime');
 
     const createCard = (i) => {
-        const d = document.createElement('div'); d.className = 'glass-card';
+        const d = document.createElement('div');
+        d.className = 'glass-card';
+        d.style.cursor = 'pointer'; // Make it look clickable
+
         let txt = '', btn = '';
         const isMovie = i.type === 'movie';
 
@@ -127,6 +244,15 @@ export function renderWatchlist() {
                 <div style="display:flex;gap:10px;margin-top:5px;">${btn}
                 <button class="btn-check" style="background:rgba(255,0,0,0.2)" onclick="removeItem('${i.firebaseId}')"><i class="fa-solid fa-trash"></i></button></div>
             </div>`;
+
+        // ADD THIS: Event listener for clicking the card
+        d.addEventListener('click', (event) => {
+            // Ignore the click if the user is actually clicking the "Watched" or "Trash" button
+            if (event.target.closest('button')) return;
+
+            showItemInfo(i, 'wl-');
+        });
+
         return d;
     };
 

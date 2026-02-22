@@ -54,10 +54,19 @@
                     <span class="chip" data-filter="anime" onclick="applyLocalFilter('anime', this)">Anime</span>
                 </div>
 
+                <section id="selected-item-panel" class="selected-item-panel">
+                    <div id="selected-item-empty" class="selected-item-empty">Tap a title to see more info.</div>
+                    <div id="selected-item-content" class="selected-item-content" style="display:none;"></div>
+                </section>
+
                 <div id="search-results" class="grid-layout"></div>
             </div>
 
             <div id="watchlist-view" class="view">
+                <section class="selected-item-panel">
+                    <div id="wl-selected-item-empty" class="selected-item-empty">Tap a title to see more info.</div>
+                    <div id="wl-selected-item-content" class="selected-item-content" style="display:none;"></div>
+                </section>
                 <div id="empty-list-msg" style="display:none; text-align:center; padding:40px; opacity:0.5;">
                     <i class="fa-solid fa-couch" style="font-size:32px; margin-bottom:10px;"></i><br>
                     Nothing to watch!
