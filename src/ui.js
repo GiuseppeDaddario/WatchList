@@ -178,6 +178,116 @@ export function applyLocalFilter(type, btn) {
     });
 }
 
+
+function makeSwipeable(containerElement, frontElement, bgElement, onDeleteCallback) {
+    let startX = 0;
+    let startY = 0; // Added to track vertical scrolling
+    let currentX = 0;
+    let isDragging = false;
+    let isOpen = false;
+    let hasStartedSwiping = false; // Flag to track intentional swipe
+
+    const openWidth = 80;
+    const deleteThreshold = 180;
+
+    if (bgElement && typeof bgElement.addEventListener === 'function') {
+        bgElement.addEventListener('click', (e) => {
+            e.stopPropagation();
+            executeDelete();
+        });
+    }
+
+    frontElement.addEventListener('touchstart', (e) => {
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY; // Record initial Y position
+        isDragging = true;
+        hasStartedSwiping = false; // Reset the flag on new touch
+        frontElement.style.transition = 'none';
+
+        // REMOVED: bgElement.style.opacity = '1';
+        // We no longer show the color on touch.
+    }, { passive: true });
+
+    frontElement.addEventListener('touchmove', (e) => {
+        if (!isDragging) return;
+
+        const deltaX = e.touches[0].clientX - startX;
+        const deltaY = e.touches[0].clientY - startY;
+
+        // If the user is scrolling vertically, cancel the horizontal swipe logic
+        if (!hasStartedSwiping && Math.abs(deltaY) > Math.abs(deltaX)) {
+            isDragging = false;
+            return;
+        }
+
+        // Only trigger the swipe mechanics if they move horizontally by more than 5px
+        if (Math.abs(deltaX) > 5) {
+            hasStartedSwiping = true;
+
+            // NOW we show the red background, because a true swipe has started
+            if (bgElement && bgElement.style.opacity !== '1') {
+                bgElement.style.opacity = '1';
+            }
+        }
+
+        // Don't move the card if the threshold hasn't been met yet
+        if (!hasStartedSwiping) return;
+
+        currentX = isOpen ? -openWidth + deltaX : deltaX;
+        if (currentX > 0) currentX = currentX * 0.15; // Elastic resistance if swiping right
+
+        frontElement.style.transform = `translateX(${currentX}px)`;
+    }, { passive: true });
+
+    frontElement.addEventListener('touchend', (e) => {
+        if (!isDragging) return;
+        isDragging = false;
+
+        const deltaX = e.changedTouches[0].clientX - startX;
+
+        // Soft tap to close if already open
+        if (isOpen && Math.abs(deltaX) < 10) {
+            closeSwipe();
+            return;
+        }
+
+        frontElement.style.transition = 'transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1)';
+
+        if (currentX < -deleteThreshold) {
+            executeDelete();
+        } else if (currentX < -40 && (!isOpen || currentX < -openWidth + 20)) {
+            openSwipe();
+        } else {
+            closeSwipe();
+        }
+    });
+
+    function openSwipe() {
+        isOpen = true;
+        currentX = -openWidth;
+        frontElement.style.transform = `translateX(-${openWidth}px)`;
+        frontElement.classList.add('is-open');
+    }
+
+    function closeSwipe() {
+        isOpen = false;
+        currentX = 0;
+        frontElement.style.transform = `translateX(0px)`;
+        frontElement.classList.remove('is-open');
+        // Hide the red background after it slides back shut
+        setTimeout(() => { if (!isOpen && bgElement) bgElement.style.opacity = '0'; }, 300);
+    }
+
+    function executeDelete() {
+        frontElement.style.transition = 'transform 0.3s ease-in';
+        frontElement.style.transform = `translateX(-100%)`;
+        setTimeout(() => {
+            onDeleteCallback();
+            containerElement.remove();
+        }, 300);
+    }
+}
+
 export function renderWatchlist() {
     const boxLive = document.getElementById('watchlist-live');
     const boxAnime = document.getElementById('watchlist-anime');
@@ -189,14 +299,8 @@ export function renderWatchlist() {
     list.sort((a, b) => {
         const isNewA = a.seasons_watched === 0;
         const isNewB = b.seasons_watched === 0;
-
-        // If A is new and B is started, A comes first (-1)
         if (isNewA && !isNewB) return -1;
-
-        // If A is started and B is new, B comes first (1)
         if (!isNewA && isNewB) return 1;
-
-        // If both are same status, sort by newest added (timestamp desc)
         return (b.timestamp || 0) - (a.timestamp || 0);
     });
 
@@ -212,14 +316,16 @@ export function renderWatchlist() {
     document.getElementById('empty-list-msg').style.display = 'none';
     document.querySelector('.wl-tabs').style.display = 'flex';
 
-    // 3. Split Data
     const liveItems = list.filter(i => i.type !== 'anime');
     const animeItems = list.filter(i => i.type === 'anime');
 
     const createCard = (i) => {
         const d = document.createElement('div');
-        d.className = 'glass-card';
-        d.style.cursor = 'pointer'; // Make it look clickable
+        d.style.position = 'relative';
+        d.style.overflow = 'hidden';
+        d.style.borderRadius = '16px'; // Smooth corners
+        d.style.marginBottom = '10px';
+        d.style.transform = 'translateZ(0)'; // Safari rounding fix
 
         let txt = '', btn = '';
         const isMovie = i.type === 'movie';
@@ -237,19 +343,27 @@ export function renderWatchlist() {
         }
 
         d.innerHTML = `
-            <img src="${i.poster}" class="poster">
-            <div class="card-info">
-                <h3 class="card-title">${i.title}</h3>
-                <div class="card-meta">${txt}</div>
-                <div style="display:flex;gap:10px;margin-top:5px;">${btn}
-                <button class="btn-check" style="background:rgba(255,0,0,0.2)" onclick="removeItem('${i.firebaseId}')"><i class="fa-solid fa-trash"></i></button></div>
+            <div class="swipe-delete-bg" style="position:absolute; inset:0; background:#ff453a; display:flex; align-items:center; justify-content:flex-end; padding-right:25px; color:#fff; opacity:0; transition:opacity 0.2s ease; cursor:pointer;">
+                <i class="fa-solid fa-trash" style="font-size: 20px;"></i>
+            </div>
+            <div class="swipe-front glass-card" style="position:relative; z-index:2; margin:0; width:100%; cursor:pointer;">
+                <img src="${i.poster}" class="poster">
+                <div class="card-info">
+                    <h3 class="card-title">${i.title}</h3>
+                    <div class="card-meta">${txt}</div>
+                    <div style="display:flex;gap:10px;margin-top:5px;">${btn}</div>
+                </div>
             </div>`;
 
-        // ADD THIS: Event listener for clicking the card
-        d.addEventListener('click', (event) => {
-            // Ignore the click if the user is actually clicking the "Watched" or "Trash" button
-            if (event.target.closest('button')) return;
+        const front = d.querySelector('.swipe-front');
+        const bgLayer = d.querySelector('.swipe-delete-bg');
 
+        // Pass the container, the front card sliding, and the static background
+        makeSwipeable(d, front, bgLayer, () => removeItem(i.firebaseId));
+
+        front.addEventListener('click', (event) => {
+            if (front.classList.contains('is-open')) return;
+            if (event.target.closest('button')) return;
             showItemInfo(i, 'wl-');
         });
 
@@ -375,54 +489,135 @@ export function renderProfileStats() {
     const boxLive = document.getElementById('history-live');
     const boxAnime = document.getElementById('history-anime');
 
-    // Safety check in case HTML elements aren't ready
     if(boxLive && boxAnime) {
-        boxLive.innerHTML = '';
-        boxAnime.innerHTML = '';
+        // Sort Alphabetically
+        hist.sort((a, b) => {
+            const titleA = (a.title || "").toUpperCase();
+            const titleB = (b.title || "").toUpperCase();
+            return titleA.localeCompare(titleB);
+        });
+
+        const liveItems = hist.filter(i => i.type !== 'anime');
+        const animeItems = hist.filter(i => i.type === 'anime');
 
         const createHistoryCard = (i) => {
             const fin = i.seasons_watched >= i.total_seasons;
             let sub = '';
 
-            // Status Logic
-            if (i.dropped) {
-                sub = `<span style="color:#e74c3c; font-weight:700;">Dropped (S${i.seasons_watched})</span>`;
-            } else if (i.type === 'movie') {
-                sub = 'Watched';
-            } else if (i.total_seasons === 1) {
-                sub = i.total_episodes ? `${i.total_episodes} Eps` : 'Watched';
-            } else {
-                sub = `S${i.seasons_watched} / S${i.total_seasons}`;
-            }
+            if (i.dropped) sub = `<span style="color:#e74c3c; font-weight:700;">Dropped (S${i.seasons_watched})</span>`;
+            else if (i.type === 'movie') sub = 'Watched';
+            else if (i.total_seasons === 1) sub = i.total_episodes ? `${i.total_episodes} Eps` : 'Watched';
+            else sub = `S${i.seasons_watched} / S${i.total_seasons}`;
 
-            const d = document.createElement('div'); d.className='history-item';
-
-            // Checkmark logic: Only show green check if finished AND NOT dropped
             const checkIcon = (fin && !i.dropped) ? '<i class="fa-solid fa-check" style="color:#2ecc71;font-size:10px;margin-left:5px;"></i>' : '';
 
-            d.innerHTML=`
-                <img src="${i.poster}" loading="lazy">
-                <div class="history-info" style="flex:1">
-                    <h4 style="margin:0; font-size:13px;">${i.title} ${checkIcon}</h4>
-                    <span style="font-size:11px; opacity:0.6;">${sub}</span>
+            const d = document.createElement('div');
+            d.style.position = 'relative';
+            d.style.overflow = 'hidden';
+            d.style.borderRadius = '10px';
+            d.style.marginBottom = '8px';
+            d.style.transform = 'translateZ(0)';
+
+            d.innerHTML = `
+                <div class="swipe-delete-bg" style="position:absolute; inset:0; background:#ff453a; display:flex; align-items:center; justify-content:flex-end; padding-right:20px; color:#fff; opacity:0; transition:opacity 0.2s ease; cursor:pointer;">
+                    <i class="fa-solid fa-trash" style="font-size: 16px;"></i>
                 </div>
-                <button class="btn-icon-del" onclick="window.removeItem('${i.firebaseId}')">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>`;
+                <div class="swipe-front history-item" style="position:relative; z-index:2; margin:0; width:100%;">
+                    <img src="${i.poster}" loading="lazy">
+                    <div class="history-info" style="flex:1">
+                        <h4 style="margin:0; font-size:13px;">${i.title} ${checkIcon}</h4>
+                        <span style="font-size:11px; opacity:0.6;">${sub}</span>
+                    </div>
+                </div>`;
+
+            const front = d.querySelector('.swipe-front');
+            const bgLayer = d.querySelector('.swipe-delete-bg');
+
+            makeSwipeable(d, front, bgLayer, () => removeItem(i.firebaseId));
             return d;
         };
 
-        // Split Data
-        const liveItems = hist.filter(i => i.type !== 'anime');
-        const animeItems = hist.filter(i => i.type === 'anime');
+        const renderCategorizedList = (items, container, prefix) => {
+            container.innerHTML = '';
+            if(items.length === 0) {
+                container.innerHTML = '<div style="opacity:0.3;text-align:center;font-size:12px;padding:20px;">No history yet.</div>';
+                return;
+            }
 
-        // Fill Live Container
-        if(liveItems.length === 0) boxLive.innerHTML = '<div style="opacity:0.3;text-align:center;font-size:12px;padding:20px;">No history yet.</div>';
-        else liveItems.forEach(i => boxLive.appendChild(createHistoryCard(i)));
+            // Wrapper to hold list and sticky sidebar
+            const wrapper = document.createElement('div');
+            wrapper.style.display = 'flex';
+            wrapper.style.position = 'relative';
 
-        // Fill Anime Container
-        if(animeItems.length === 0) boxAnime.innerHTML = '<div style="opacity:0.3;text-align:center;font-size:12px;padding:20px;">No history yet.</div>';
-        else animeItems.forEach(i => boxAnime.appendChild(createHistoryCard(i)));
+            const listCol = document.createElement('div');
+            listCol.style.flex = '1';
+            listCol.style.paddingRight = '25px'; // Leave room for A-Z sidebar
+
+            const azCol = document.createElement('div');
+            azCol.style.display = 'flex';
+            azCol.style.flexDirection = 'column';
+            azCol.style.alignItems = 'center';
+            azCol.style.justifyContent = 'center';
+            azCol.style.fontSize = '10px';
+            azCol.style.fontWeight = 'bold';
+            azCol.style.color = 'var(--accent-color, #3498db)';
+            azCol.style.gap = '3px';
+
+            let currentLetter = '';
+            const lettersUsed = [];
+
+            items.forEach(i => {
+                let letter = (i.title || "#").charAt(0).toUpperCase();
+                if (!/[A-Z]/.test(letter)) letter = '#';
+
+                // Add Letter Header if it's a new letter
+                if (letter !== currentLetter) {
+                    currentLetter = letter;
+                    lettersUsed.push(currentLetter);
+
+                    const header = document.createElement('div');
+                    header.id = `idx-${prefix}-${currentLetter}`;
+                    header.innerText = currentLetter;
+                    header.style.padding = '15px 0 5px';
+                    header.style.fontSize = '14px';
+                    header.style.fontWeight = '800';
+                    header.style.opacity = '0.6';
+                    listCol.appendChild(header);
+                }
+                listCol.appendChild(createHistoryCard(i));
+            });
+
+            // Populate A-Z sidebar
+            lettersUsed.forEach(l => {
+                const letterBtn = document.createElement('div');
+                letterBtn.innerText = l;
+                letterBtn.style.padding = '2px 5px';
+                letterBtn.style.cursor = 'pointer';
+
+                const scrollToLetter = (e) => {
+                    e.preventDefault();
+                    document.getElementById(`idx-${prefix}-${l}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                };
+
+                letterBtn.addEventListener('click', scrollToLetter);
+                letterBtn.addEventListener('touchstart', scrollToLetter, { passive: false });
+                azCol.appendChild(letterBtn);
+            });
+
+            const sidebarContainer = document.createElement('div');
+            sidebarContainer.style.position = 'sticky';
+            sidebarContainer.style.top = '10px';
+            sidebarContainer.style.height = 'max-content';
+            sidebarContainer.style.alignSelf = 'flex-start'; // Ensures it sticks correctly
+            sidebarContainer.appendChild(azCol);
+
+            wrapper.appendChild(listCol);
+            wrapper.appendChild(sidebarContainer);
+            container.appendChild(wrapper);
+        };
+
+        renderCategorizedList(liveItems, boxLive, 'live');
+        renderCategorizedList(animeItems, boxAnime, 'anime');
     }
 }
 
